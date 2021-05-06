@@ -28,7 +28,7 @@ def gbtidl_tsys(ref_on, ref_off, tcal):
     return tcal*np.average(ref_off[:,ch0:chf], axis=1)/np.average(ref_on[:,ch0:chf] - ref_off[:,ch0:chf], axis=1) + tcal/2.
     
 
-def get_ps(sdfits, scan, intnum=None, plnum=0, method='freqdep'):
+def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='freqdep'):
     """
     
     Parameters
@@ -51,7 +51,7 @@ def get_ps(sdfits, scan, intnum=None, plnum=0, method='freqdep'):
     
     """
 
-    ps_scan = sdfits.get_scans(scan, intnum=intnum, plnum=plnum)
+    ps_scan = sdfits.get_scans(scan, ifnum=ifnum, intnum=intnum, plnum=plnum)
     rows = ps_scan.table
     obsmode = rows["OBSMODE"]
     last_on = rows["LASTON"]
@@ -68,10 +68,10 @@ def get_ps(sdfits, scan, intnum=None, plnum=0, method='freqdep'):
     
     scan_on, scan_off = utils.get_ps_scan_pair(scan, procnum, procname)
     
-    sou_on = sdfits.get_scans(scan_on, sig="T", cal="T", intnum=intnum, plnum=plnum)
-    sou_off = sdfits.get_scans(scan_on, sig="T", cal="F", intnum=intnum, plnum=plnum)
-    off_on = sdfits.get_scans(scan_off, sig="T", cal="T", intnum=intnum, plnum=plnum)
-    off_off = sdfits.get_scans(scan_off, sig="T", cal="F", intnum=intnum, plnum=plnum)
+    sou_on = sdfits.get_scans(scan_on, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    sou_off = sdfits.get_scans(scan_on, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    off_on = sdfits.get_scans(scan_off, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    off_off = sdfits.get_scans(scan_off, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum)
     
     if method == 'freqdep':
         
@@ -105,11 +105,11 @@ def get_ps(sdfits, scan, intnum=None, plnum=0, method='freqdep'):
     return tsou
 
 
-def get_tcal(sdfits, scan, scale="Perley-Butler 2017", units="K"):
+def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2017", units="K"):
     """
     """
     
-    cal_scan = sdfits.get_scans(scan)
+    cal_scan = sdfits.get_scans(scan, ifnum=ifnum, intnum=intnum, plnum=plnum)
     cal_rows = cal_scan.table
     obsmode = cal_rows["OBSMODE"]
     last_on = cal_rows["LASTON"]
@@ -129,24 +129,12 @@ def get_tcal(sdfits, scan, scale="Perley-Butler 2017", units="K"):
                       "check results.")
     
     scan_on, scan_off = utils.get_ps_scan_pair(scan, procnum, procname)
-    #if np.all(procnum == 1) and procname == "OffOn":
-        #scan_on = scan + 1
-        #scan_off = scan
-    #elif np.all(procnum == 2) and procname == "OffOn":
-        #scan_on = scan
-        #scan_off = scan - 1
-    #elif np.all(procnum == 1) and procname == "OnOff":
-        #scan_on = scan
-        #scan_off = scan + 1
-    #elif np.all(procnum == 2) and procname == "OnOff":
-        #scan_on = scan - 1
-        #scan_off = scan
     
     # Get the On and Off source scans with the noise diode On and Off.
-    sou_on = sdfits.get_scans(scan_on, sig="T", cal="T")
-    sou_off = sdfits.get_scans(scan_on, sig="T", cal="F")
-    off_on = sdfits.get_scans(scan_off, sig="T", cal="T")
-    off_off = sdfits.get_scans(scan_off, sig="T", cal="F")
+    sou_on = sdfits.get_scans(scan_on, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    sou_off = sdfits.get_scans(scan_on, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    off_on = sdfits.get_scans(scan_off, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum)
+    off_off = sdfits.get_scans(scan_off, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum)
     
     sou_on.average()
     sou_off.average()

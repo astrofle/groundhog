@@ -40,7 +40,7 @@ class SDFITS:
         mask = np.isin(self.table["SCAN"], scans)
         
         if ifnum is not None:
-            mask = mask & (self.table["IFNUM"] == sig)
+            mask = mask & (self.table["IFNUM"] == ifnum)
             
         if sig is not None:
             mask = mask & (self.table["SIG"] == sig)

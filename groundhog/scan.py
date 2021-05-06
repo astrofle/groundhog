@@ -13,7 +13,7 @@ class Scan():
     def __init__(self, table):
         
         self.table = table
-        self.data = table["DATA"]
+        self.data = np.ma.masked_invalid(table["DATA"])
         self.tsys = table["TSYS"]
         self.get_freq()
         #self.freq = None
