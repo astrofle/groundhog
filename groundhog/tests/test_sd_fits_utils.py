@@ -17,7 +17,7 @@ def test_make_summary(sd_fits_table):
 
 def test_update_table_column(sd_fits_table):
     table, head = sd_fits_table
-    new_array = np.zeros((len(table),15000), dtype=np.float)
+    new_array = np.zeros((len(table),15000), dtype=float)
     new_table = sd_fits_utils.update_table_column(table, 'DATA', new_array)
     np.testing.assert_array_equal(new_table['DATA'], new_array)
     new_table = sd_fits_utils.update_table_column(new_table, 'IFNUM', np.ones(len(table)))
