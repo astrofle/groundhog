@@ -3,9 +3,11 @@ Example code for computing the temperature of the noise diode (Tcal)
 from On-Off observations of a source of known flux density.
 """
 
+import numpy as np
+
 # Import groundhog.
 from groundhog import datared
-from groundhog import sd_fits_io, sd_fits
+from groundhog import sd_fits_io, sd_fits, sd_fits_utils
 
 
 # Load the data.
@@ -22,3 +24,9 @@ cal_scan = sdfits.get_scans(6, plnum=0, ifnum=[0])
 cal_scan.average()
 # The frequency vector lives here.
 freq = cal_scan.freq
+
+# Create a new table with the computed vector of Tcal values.
+new_table = sd_fits_utils.update_table_column(table, 'TCAL', np.tile(tcal.value, (len(table),1)))
+
+# Write to a new SDFITS.
+sd_fits_io.write_sdfits("TSCAL_210420_PF.updated.vegas.fits", new_table, head, overwrite=False)
