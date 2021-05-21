@@ -15,9 +15,13 @@ def compute_freq_axis(table, chstart=1, chstop=-1, apply_doppler=True):
     # https://github.com/nrao/gbtgridder/blob/master/src/get_data.py
     
     shape = table.field('data').shape
+    if len(shape) == 1:
+        ax = 0
+    elif len(shape) == 2:
+        ax = 1
     
     if chstop == -1:
-        chstop = shape[1] + 1
+        chstop = shape[ax] + 1
         
     freq = np.zeros(shape)
 
@@ -38,8 +42,10 @@ def compute_freq_axis(table, chstart=1, chstop=-1, apply_doppler=True):
     # Full frequency axis in doppler tracked frame from first row.
     # FITS counts from 1, this indx refers to the original axis, before chan selection.
     indx = np.arange(chstop - chstart) + chstart
-    indx = np.tile(indx, (shape[0],1))
-    
-    freq[:,:] = (crv1[:,np.newaxis] + cd1[:,np.newaxis]*(indx - crp1[:,np.newaxis]))*doppler[:,np.newaxis]
-
+    if ax == 1:
+        indx = np.tile(indx, (shape[0],1))
+        freq[:,:] = (crv1[:,np.newaxis] + cd1[:,np.newaxis]*(indx - crp1[:,np.newaxis]))*doppler[:,np.newaxis]
+    else:
+        freq = (crv1 + cd1*(indx - crp1))*doppler
+        
     return freq*u.Hz

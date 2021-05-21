@@ -89,8 +89,16 @@ class SDFITS:
             data = data[chan0:chanf]
         elif len(data.shape) == 2:
             data = data[:,chan0:chanf]
-            
+        
+        # Update DATA column.
         new_table = sd_fits_utils.update_table_column(self.table, 'DATA', data)
         self.table = new_table
+        
+        # Update frequency axis header.
+        crp1 = self.table.field('crpix1')
+        crp1 -= chan0
+        new_table = sd_fits_utils.update_table_column(self.table, 'CRPIX1', crp1)
+        self.table = new_table
+        
         
             
