@@ -61,3 +61,36 @@ class SDFITS:
         scan = Scan(table_scans)
         
         return scan
+    
+    
+    def remove_edge_chans(self, frac=0.2, chan0=None, chanf=None):
+        """
+        Removes the edge channels of the SDFITS DATA table.
+        
+        Parameters
+        ----------
+        frac : float, optional
+            Fraction of the edge channels to remove.
+            It will remove half of this value at each end of the spectra,
+            i.e., if `frac=0.2` it will remove 10% of the channels on the 
+            left and 10% of the channels on the right.
+        """
+        
+        data = self.table['DATA']
+        if len(data.shape) == 1:
+            nchan = data.shape[0]
+        elif len(data.shape) == 2:
+            nchan = data.shape[1]
+        if chan0 is None:
+            chan0 = int(nchan*frac/2)
+        if chanf is None:
+            chanf = int(nchan - nchan*frac/2)
+        if len(data.shape) == 1:
+            data = data[chan0:chanf]
+        elif len(data.shape) == 2:
+            data = data[:,chan0:chanf]
+            
+        new_table = sd_fits_utils.update_table_column(self.table, 'DATA', data)
+        self.table = new_table
+        
+            
