@@ -24,9 +24,11 @@ class Scan():
         Averages the integrations in a scan along the time axis.
         """
         
-        data_avg = np.ma.average(self.data, axis=0, weights=np.power(self.tsys, -2.))
+        tint = self.table["EXPOSURE"]
+        dnu = self.table["CDELT1"]
+        data_avg = np.ma.average(self.data, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.data = data_avg
-        freq_avg = np.average(self.freq, axis=0, weights=np.power(self.tsys, -2.))
+        freq_avg = np.average(self.freq, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.freq = freq_avg
         
         

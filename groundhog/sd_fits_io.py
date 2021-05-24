@@ -6,8 +6,23 @@ https://fits.gsfc.nasa.gov/registry/sdfits.html
 
 from astropy.io import fits
 
+from groundhog.sd_fits import SDFITS
+
 
 def read_sdfits(filename, ext='SINGLE DISH'):
+    """
+    """
+    
+    #hdu = fits.open(filename)
+    #table = hdu[ext].data
+    #head = hdu[ext].header
+    table, head = _read_sdfits(filename, ext=ext)
+    sdfits = SDFITS(table, head)
+    
+    return sdfits
+
+
+def _read_sdfits(filename, ext='SINGLE DISH'):
     """
     """
     
@@ -17,8 +32,18 @@ def read_sdfits(filename, ext='SINGLE DISH'):
     
     return table, head
     
+
+def write_sdfits(filename, sdfits, overwrite=False):
+    """
+    """
     
-def write_sdfits(filename, table, header, overwrite=False):
+    table = sdfits.table
+    header = sdfits.header
+    
+    _write_sdfits(filename, table, header, overwrite=overwrite)
+    
+    
+def _write_sdfits(filename, table, header, overwrite=False):
     """
     """
     

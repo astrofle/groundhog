@@ -4,8 +4,9 @@
 
 import numpy as np
 
-from groundhog import sd_fits_utils
 from groundhog.scan import Scan
+from groundhog import datared
+from groundhog import sd_fits_utils
 
 
 class SDFITS:
@@ -37,19 +38,9 @@ class SDFITS:
             Rows with the selected scans.
         """
         
-        mask = np.isin(self.table["SCAN"], scans)
-        
-        if ifnum is not None:
-            mask = mask & (self.table["IFNUM"] == ifnum)
-            
-        if sig is not None:
-            mask = mask & (self.table["SIG"] == sig)
-            
-        if cal is not None:
-            mask = mask & (self.table["CAL"] == cal)
-            
-        if plnum is not None:
-            mask = mask & np.isin(self.table["PLNUM"], plnum)
+        mask = sd_fits_utils.get_table_mask(self.table, scans=scans, 
+                                            ifnum=ifnum, sig=sig, 
+                                            cal=cal, plnum=plnum)
         
         table_scans = self.table[mask]
         
@@ -77,14 +68,18 @@ class SDFITS:
         """
         
         data = self.table['DATA']
+        
         if len(data.shape) == 1:
             nchan = data.shape[0]
         elif len(data.shape) == 2:
             nchan = data.shape[1]
+            
         if chan0 is None:
             chan0 = int(nchan*frac/2)
         if chanf is None:
             chanf = int(nchan - nchan*frac/2)
+        
+        # Select only inner channels.
         if len(data.shape) == 1:
             data = data[chan0:chanf]
         elif len(data.shape) == 2:
@@ -100,5 +95,93 @@ class SDFITS:
         new_table = sd_fits_utils.update_table_column(self.table, 'CRPIX1', crp1)
         self.table = new_table
         
+    
+    def update_tcal(self, scan, ifnum=None, plnum=None, update_scans=None,
+                    scale="Perley-Butler 2017", units="K", avgf_min=16):
+        """
+        Updates the TCAL column on the SDFITS table.
+        `scan` must point to one of the scans of a flux density calibrator.
+        
+        Parameters
+        ----------
+        scan : int
+            Scan with observations of a calibrator source.
+            This will be used to derive the temperature of the
+            noise diode.
+        ifnum : list, optional
+            Spectral windows to process.
+            Will process all spectral windows by default.
+        plnum : list, optional
+            Polarizations to process.
+            Will process all polarizations by default.
+        update_scans : list, optional
+            List of scans to update with the new TCAL values.
+        scale : str, optional
+        
+        units : {'K', 'Jy'}, optional
+            TCAL units.
+        avgf_min : int
+            Minimum number of channels to average together when
+            computing the kappa factor (Eq. (14) in Winkel et al. 2012).
+        """
+        
+        if ifnum is None:
+            ifnum = np.unique(self.table['IFNUM'])
+        else:
+            if not hasattr(ifnum, "__len__"):
+                ifnum = [ifnum]
+        
+        if plnum is None:
+            plnum = np.unique(self.table['PLNUM'])
+        else:
+            if not hasattr(plnum, "__len__"):
+                plnum = [plnum]
+        
+        # How many channels?
+        shape = self.table['DATA'].shape
+        if len(shape) == 1:
+            ax = 0
+        elif len(shape) == 2:
+            ax = 1
+        nchan = shape[ax]
+        
+        if self.table['TCAL'].shape != shape:
+            # Expand the TCAL column to accomodate vectors.
+            tcal_col = self.table['TCAL']
+            tcal = np.tile(tcal_col[:,np.newaxis], (1,nchan))
+            self.update_table_col('TCAL', tcal)
+        
+        # Loop over spectral windows and polarizations
+        # updating TCAL.
+        for ifnum_ in ifnum:
+            for plnum_ in plnum:
+        
+                tcal = datared.get_tcal(self, scan, ifnum=ifnum, plnum=plnum, 
+                                        scale=scale, units=units, avgf_min=avgf_min)
+                
+                mask = sd_fits_utils.get_table_mask(self.table, scans=update_scans, 
+                                                    ifnum=ifnum, plnum=plnum)
+                
+                tcal_col = self.table['TCAL']
+                tcal_col[mask] = np.tile(tcal.value, (mask.sum(),1))
+                self.update_table_col('TCAL', tcal_col)
+        
+    
+    def update_table_col(self, column_name, column_vals):
+        """
+        Updates `column_name` with `column_vals` in the SDFITS table.
+        
+        Parameters
+        ----------
+        column_name : str
+            Name of the column to update.
+        column_vals : np.ndarray
+            Array with the new column values.
+        """
+        
+        new_table = sd_fits_utils.update_table_column(self.table, 
+                                                      column_name, 
+                                                      column_vals)
+        self.table = new_table
         
             

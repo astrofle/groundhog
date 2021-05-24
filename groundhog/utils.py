@@ -4,6 +4,29 @@ Utility functions.
 
 import numpy as np
 
+from functools import reduce
+
+
+def factors(n):
+    """
+    Decomposes a number into its factors.
+    
+    Parameters
+    ----------
+    n : int
+        Number to decompose.
+    Returns
+    -------
+    factors : array
+        Array of values into which n can be decomposed.
+    """
+    
+    factors = set(reduce(list.__add__,
+                ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)))
+    factors = np.fromiter(factors, int, len(factors))
+
+    return factors
+
 
 def get_ps_scan_pair(scan, procnum, procname):
     """

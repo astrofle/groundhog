@@ -26,9 +26,52 @@ def gbtidl_tsys(ref_on, ref_off, tcal):
     chf = -int(nchan*0.1) + 1 # Python indexing is exclusive, IDL inclusive.
     
     return tcal*np.average(ref_off[:,ch0:chf], axis=1)/np.average(ref_on[:,ch0:chf] - ref_off[:,ch0:chf], axis=1) + tcal/2.
+
+
+def classic_tsys(ref_on, ref_off, tcal):
+    """
+    """
+    
+    nchan = ref_on.shape[1]
+    ch0 = int(nchan*0.1)
+    chf = -int(nchan*0.1) + 1 # Python indexing is exclusive.
+    
+    tsys_tcal = (ref_on + ref_off - np.average((ref_on + ref_off)[:,ch0:chf], axis=1)[:,np.newaxis])/(2.*np.average((ref_on + ref_off)[:,ch0:chf], axis=1)[:,np.newaxis])
+    
+    return tcal*np.average(tsys_tcal, axis=1)
+
+
+def get_kappa(tcal_on, tcal_off, avgf=1):
+    """
+    Computes the kappa factor (Eq. (14) in Winkel et al. 2012).
+    
+    Parameters
+    ----------
+    tcal_on : array
+        Power with the noise diode on.
+    tcal_off : array
+        Power with the noise diode off.
+    avgf : int
+        Average the ratio `tcal_on/tcal_off` by this amount.
+    
+    Returns
+    -------
+    kappa : array
+        Kappa factor as defined by Eq. (14) in Winkel et al. 2012.
+    """
+    
+    nchan = len(tcal_on)
+    
+    # Compute the kappa factor (Winkel et al. 2012).
+    off_ratio = tcal_on/tcal_off
+    # Average in frequency to increase the SNR.
+    off_ratio = off_ratio.reshape(nchan//avgf, avgf).mean(axis=1)
+    kappa = np.ma.power(off_ratio - 1., -1.)  
+    
+    return kappa
     
 
-def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='freqdep'):
+def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='vector', avgf_min=256):
     """
     
     Parameters
@@ -39,12 +82,12 @@ def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='freqdep'):
         Scan number.
     plnum : int
         Polarization number.
-    method : {'freqdep', 'classic'}, optional
+    method : {'vector', 'classic'}, optional
         Method used to compute the source temperature.
-        If set to ``'freqdep'`` it will use Eq. (16) of
+        If set to ``'vector'`` it will use Eq. (16) of
         Winkel et al. (2012). If set to ``'classic'`` it
         will use the same method as GBTIDL.
-        The default is ``'freqdep'``.
+        The default is ``'vector'``.
     
     Returns
     -------
@@ -73,39 +116,64 @@ def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='freqdep'):
     off_on = sdfits.get_scans(scan_off, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum)
     off_off = sdfits.get_scans(scan_off, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum)
     
-    if method == 'freqdep':
+    if method == 'vector':
         
         sou_on.average()
         sou_off.average()
         off_on.average()
         off_off.average()
-    
-        # Compute the kappa factor (Winkel et al. 2012).
-        kappa_off = np.ma.power(off_on.data/off_off.data - 1., -1.)
+        off_freq = off_off.freq
+        sou_freq = sou_on.freq
+        
+        nchan = off_on.data.shape[0]
+        facs = utils.factors(nchan)
+        avgf = np.min(facs[facs >= avgf_min])
+        
+        kappa_off = get_kappa(off_on.data, off_off.data, avgf=avgf)
+        kappa_freq = off_freq.reshape(nchan//avgf, avgf).mean(axis=1)
+        
+        # Interpolate back to high frequency resolution.
+        pt = np.argsort(kappa_freq)
+        pi = np.argsort(sou_freq)
+        kappa_interp = np.interp(sou_freq.to('Hz').value[pi], kappa_freq.to('Hz').value[pt], kappa_off)
         
         # Compute the source temperature (Eq. (16) in Winkel et al. 2012).
-        tsou_on = (kappa_off + 1.)*tcal*(sou_on.data - off_on.data)/off_on.data
-        tsou_off = kappa_off*tcal*(sou_off.data - off_off.data)/off_off.data
+        tsou_on = (kappa_interp + 1.)*tcal*(sou_on.data - off_on.data)/off_on.data
+        tsou_off = kappa_interp*tcal*(sou_off.data - off_off.data)/off_off.data
         # Average.
         tsou = 0.5*(tsou_on + tsou_off)
         
-    elif method == 'classic':
+    elif method == 'gbtidl':
         
-        # Eqs. (1) and (2) from Braatz (2009, GBTIDL calibration guide). 
+        # Eqs. (1) and (2) from Braatz (2009, GBTIDL calibration guide)
+        # https://www.gb.nrao.edu/GBT/DA/gbtidl/gbtidl_calibration.pdf
         tsys = gbtidl_tsys(off_on.data, off_off.data, tcal)
         sig = 0.5*(sou_on.data + sou_off.data)
         ref = 0.5*(off_on.data + off_off.data)
-        tsou_int = gbtidl_sigref2ta(sig, ref, tsys)
-        tsig_sou = 0.5*(sou_on.table["EXPOSURE"] + sou_off.table["EXPOSURE"])
-        tsig_off = 0.5*(off_on.table["EXPOSURE"] + off_off.table["EXPOSURE"])
-        tsig = 0.5*(tsig_sou + tsig_off)
+        ta = gbtidl_sigref2ta(sig, ref, tsys)
+        tint_sou = 0.5*(sou_on.table["EXPOSURE"] + sou_off.table["EXPOSURE"])
+        tint_off = 0.5*(off_on.table["EXPOSURE"] + off_off.table["EXPOSURE"])
+        tint = 0.5*(tint_sou + tint_off)
         dnu = np.mean(sou_on.table["CDELT1"])
-        tsou = np.average(tsou_int, axis=0, weights=dnu*tsig*np.power(tsys, -2.))
-    
+        tsou = np.average(ta, axis=0, weights=dnu*tint*np.power(tsys, -2.))
+        
+    elif method == 'classic':
+        tsys = classic_tsys(off_on.data, off_off.data, tcal)
+        ta_on = (sou_on.data - off_on.data)/off_on.data*(tsys[:,np.newaxis] + tcal)
+        ta_off = (sou_off.data - off_off.data)/off_off.data*(tsys[:,np.newaxis])
+        tint_sou = 0.5*(sou_on.table["EXPOSURE"] + sou_off.table["EXPOSURE"])
+        tint_off = 0.5*(off_on.table["EXPOSURE"] + off_off.table["EXPOSURE"])
+        tint = 0.5*(tint_sou + tint_off)
+        dnu = np.mean(sou_on.table["CDELT1"])
+        ta_on = np.average(ta_on, axis=0, weights=dnu*tint_sou*np.power(tsys, -2.))
+        ta_off = np.average(ta_off, axis=0, weights=dnu*tint_off*np.power(tsys, -2.))
+        tsou = 0.5*(ta_on + ta_off)
+        
     return tsou
 
 
-def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2017", units="K"):
+def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2017", units="K",
+             avgf_min=16):
     """
     """
     
@@ -140,18 +208,29 @@ def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2
     sou_off.average()
     off_on.average()
     off_off.average()
+    off_freq = off_off.freq
+    sou_freq = sou_on.freq
     
-    # Compute the kappa factor (Winkel et al. 2012).
-    kappa_off = np.ma.power(off_on.data/off_off.data - 1., -1.)
+    nchan = off_on.data.shape[0]
+    facs = utils.factors(nchan)
+    avgf = np.min(facs[facs >= avgf_min])
     
-    ta_sou_on = calibrators.compute_sed(sou_on.freq, scale, source, units=units)
-    ta_sou_off = calibrators.compute_sed(off_on.freq, scale, source, units=units)
+    kappa_off = get_kappa(off_on.data, off_off.data, avgf=avgf)
+    kappa_freq = off_freq.reshape(nchan//avgf, avgf).mean(axis=1)
+    
+    # Interpolate back to high frequency resolution.
+    pt = np.argsort(kappa_freq)
+    pi = np.argsort(sou_freq)
+    kappa_interp = np.interp(sou_freq.to('Hz').value[pi], kappa_freq.to('Hz').value[pt], kappa_off)
+    
+    ta_sou_on = calibrators.compute_sed(sou_freq, scale, source, units=units)
+    ta_sou_off = calibrators.compute_sed(off_freq, scale, source, units=units)
     
     # Compute the temperature of the noise diode (Eq. (76) in Winkel et al. 2012).
     # Using the observations with the noise diode off.
-    tcal_off = ta_sou_off/(kappa_off*(sou_off.data - off_off.data)/off_off.data)
+    tcal_off = ta_sou_off/(kappa_interp*(sou_off.data - off_off.data)/off_off.data)
     # Using the observations with the noise diode on.
-    tcal_on = ta_sou_on/((kappa_off + 1.)*(sou_on.data - off_on.data)/off_on.data)
+    tcal_on = ta_sou_on/((kappa_interp + 1.)*(sou_on.data - off_on.data)/off_on.data)
     # Average the results.
     tcal = (tcal_off/np.ma.std(tcal_off)**2. + tcal_on/np.ma.std(tcal_on)**2.) / \
            (1./np.ma.std(tcal_off)**2. + 1./np.ma.std(tcal_on)**2.)

@@ -69,6 +69,35 @@ def make_summary(table):
     return summary
 
 
+def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None):
+    """
+    """
+    
+    if scans is None and ifnum is None and sig is None and cal is None and plnum is None:
+        mask = None
+        
+    else:
+        if scans is not None:
+            mask = np.isin(table["SCAN"], scans)
+        else:
+            scans = np.unique(table["SCAN"])
+            mask = np.isin(table["SCAN"], scans)
+        
+        if ifnum is not None:
+            mask = mask & (table["IFNUM"] == ifnum)
+            
+        if sig is not None:
+            mask = mask & (table["SIG"] == sig)
+            
+        if cal is not None:
+            mask = mask & (table["CAL"] == cal)
+            
+        if plnum is not None:
+            mask = mask & np.isin(table["PLNUM"], plnum)
+    
+    return mask
+
+
 def update_table_column(table, column, new_array):
     """
     Parameters

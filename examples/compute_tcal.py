@@ -11,8 +11,7 @@ from groundhog import sd_fits_io, sd_fits, sd_fits_utils
 
 
 # Load the data.
-table, head = sd_fits_io.read_sdfits('../groundhog/tests/data/TSCAL_210420_PF.raw.vegas.fits')
-sdfits = sd_fits.SDFITS(table, head)
+sdfits = sd_fits_io.read_sdfits('../groundhog/tests/data/TSCAL_210420_PF.raw.vegas.fits')
 
 # Compute Tcal for the first spectral window and polarization,
 # and tie the calibration to the Perley and Butler 2017 flux scale.
@@ -25,8 +24,10 @@ cal_scan.average()
 # The frequency vector lives here.
 freq = cal_scan.freq
 
+# Udate the SDFITS with the new Tcal values.
+sdfits.update_table_col('TCAL', np.tile(tcal.value, (len(sdfits.table),1)))
 # Create a new table with the computed vector of Tcal values.
-new_table = sd_fits_utils.update_table_column(table, 'TCAL', np.tile(tcal.value, (len(table),1)))
+#new_table = sd_fits_utils.update_table_column(table, 'TCAL', np.tile(tcal.value, (len(table),1)))
 
 # Write to a new SDFITS.
-sd_fits_io.write_sdfits("TSCAL_210420_PF.updated.vegas.fits", new_table, head, overwrite=False)
+sd_fits_io.write_sdfits("TSCAL_210420_PF.updated.vegas.fits", sdfits, overwrite=False)
