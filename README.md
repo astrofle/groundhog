@@ -13,7 +13,15 @@ Clone the repository:
 
 `cd groundhog`
 
-Then run `createEnv` to get your environment set up.
+then run `createEnv` to get your environment set up
+
+`createEnv groundhog-venv`
+
+or install `goundhog` in your current environment
+
+`pip install -r requirements.txt`
+
+`pip install .`
 
 
 ## Examples
