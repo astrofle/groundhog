@@ -16,14 +16,21 @@ class SDFITS:
     def __init__(self, table, header):
         
         self.table = table
-        self.header = header 
+        self.header = header
+        
+        self.unique = {}
+        for i,tab in enumerate(table):
+            self.unique[i] = sd_fits_utils.parse_sdfits(tab)
+        
+        self.numtab = len(table)
+        
         #self.unique = sd_fits_utils.parse_sdfits(table)
         #self._scans = table["SCAN"]
         #self._ifnum = unq.ifnum
         #self._cal = unq.cal
 
     
-    def get_scans(self, scans, ifnum=None, sig=None, cal=None, plnum=None, intnum=None):
+    def get_scans(self, scans, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None, intnum=None):
         """
         Returns the rows in the SDFITS table for the requested scan numbers.
         
@@ -38,11 +45,25 @@ class SDFITS:
             Rows with the selected scans.
         """
         
-        mask = sd_fits_utils.get_table_mask(self.table, scans=scans, 
+        table = None
+        
+        # Select the table from the possible tables.
+        if self.numtab == 1:
+            table = self.table[0]
+        elif self.numtab > 1:
+            for i in range(self.numtab):
+                if np.isin(self.table[i]["SCAN"], scans).sum() > 0:
+                    if table is not None:
+                        print("Scans span multiple configurations.")
+                        print("This is not supported.")
+                        return
+                    table = self.table[i]
+        
+        mask = sd_fits_utils.get_table_mask(table, scans=scans, 
                                             ifnum=ifnum, sig=sig, 
                                             cal=cal, plnum=plnum)
         
-        table_scans = self.table[mask]
+        table_scans = table[mask]
         
         if intnum is not None:
             if not hasattr(intnum, "__len__"):
@@ -67,34 +88,35 @@ class SDFITS:
             left and 10% of the channels on the right.
         """
         
-        data = self.table['DATA']
-        
-        if len(data.shape) == 1:
-            nchan = data.shape[0]
-        elif len(data.shape) == 2:
-            nchan = data.shape[1]
+        for i,table in enumerate(self.table):
+            data = table['DATA']
             
-        if chan0 is None:
-            chan0 = int(nchan*frac/2)
-        if chanf is None:
-            chanf = int(nchan - nchan*frac/2)
-        
-        # Select only inner channels.
-        if len(data.shape) == 1:
-            data = data[chan0:chanf]
-        elif len(data.shape) == 2:
-            data = data[:,chan0:chanf]
-        
-        # Update DATA column.
-        new_table = sd_fits_utils.update_table_column(self.table, 'DATA', data)
-        self.table = new_table
-        
-        # Update frequency axis header.
-        crp1 = self.table.field('crpix1')
-        crp1 -= chan0
-        new_table = sd_fits_utils.update_table_column(self.table, 'CRPIX1', crp1)
-        self.table = new_table
-        
+            if len(data.shape) == 1:
+                nchan = data.shape[0]
+            elif len(data.shape) == 2:
+                nchan = data.shape[1]
+                
+            if chan0 is None:
+                chan0 = int(nchan*frac/2)
+            if chanf is None:
+                chanf = int(nchan - nchan*frac/2)
+            
+            # Select only inner channels.
+            if len(data.shape) == 1:
+                data = data[chan0:chanf]
+            elif len(data.shape) == 2:
+                data = data[:,chan0:chanf]
+            
+            # Update DATA column.
+            new_table = sd_fits_utils.update_table_column(table, 'DATA', data)
+            self.table[i] = new_table
+            
+            # Update frequency axis header.
+            crp1 = table.field('crpix1')
+            crp1 -= chan0
+            new_table = sd_fits_utils.update_table_column(table, 'CRPIX1', crp1)
+            self.table[i] = new_table
+            
     
     def update_tcal(self, scan, ifnum=None, plnum=None, update_scans=None,
                     scale="Perley-Butler 2017", units="K", avgf_min=16):
