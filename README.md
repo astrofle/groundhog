@@ -2,6 +2,12 @@
 
 Arbovale's response to `GBTIDL`.
 
+Currently, `groundhog` can:
+
+   * Calibrate position switched observations.
+   * Calibrate position switched maps.
+   * Derive the temperature of the noise diode from position switched observations.
+
 This is still a work in progress :)
 
 
