@@ -16,14 +16,21 @@ def parse_sdfits(table):
     
     """
     
-    uscans = np.unique(table['SCAN'])
-    ucal = np.unique(table['CAL'])
-    uplnum = np.unique(table['PLNUM'])
-    usig = np.unique(table['SIG'])
-    uifnum = np.unique(table['IFNUM'])
+    #uscans = np.unique(table['SCAN'])
+    #ucal = np.unique(table['CAL'])
+    #uplnum = np.unique(table['PLNUM'])
+    #usig = np.unique(table['SIG'])
+    #uifnum = np.unique(table['IFNUM'])
+    uscans = np.array(list(set(table['SCAN'])), dtype=int)
+    ucal = np.array(list(set(table['CAL'])), dtype=str)
+    uplnum = np.array(list(set(table['PLNUM'])), dtype=int)
+    usig = np.array(list(set(table['SIG'])), dtype=str)
+    uifnum = np.array(list(set(table['IFNUM'])), dtype=str)
+    ufdnum = np.array(list(set(table['FDNUM'])), dtype=str)
     
-    Unique = namedtuple('UniqueEntries', ['scan', 'cal', 'plnum', 'sig', 'ifnum'])
-    uniques = Unique(scan=uscans, cal=ucal, plnum=uplnum, sig=usig, ifnum=uifnum)
+    
+    Unique = namedtuple('UniqueEntries', ['scan', 'cal', 'plnum', 'sig', 'ifnum', 'fdnum'])
+    uniques = Unique(scan=uscans, cal=ucal, plnum=uplnum, sig=usig, ifnum=uifnum, fdnum=ufdnum)
     
     return uniques
 
@@ -69,7 +76,7 @@ def make_summary(table):
     return summary
 
 
-def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None):
+def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None):
     """
     """
     
@@ -94,6 +101,9 @@ def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None
             
         if plnum is not None:
             mask = mask & np.isin(table["PLNUM"], plnum)
+            
+        if fdnum is not None:
+            mask = mask & np.isin(table["FDNUM"], fdnum)
     
     return mask
 

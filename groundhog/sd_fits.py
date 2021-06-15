@@ -13,21 +13,17 @@ class SDFITS:
     
     __name__ = "SDFITS"
     
-    def __init__(self, table, header):
+    def __init__(self, table, header, phead=None):
         
         self.table = table
         self.header = header
+        self.phead = phead
         
         self.unique = {}
         for i,tab in enumerate(table):
             self.unique[i] = sd_fits_utils.parse_sdfits(tab)
         
         self.numtab = len(table)
-        
-        #self.unique = sd_fits_utils.parse_sdfits(table)
-        #self._scans = table["SCAN"]
-        #self._ifnum = unq.ifnum
-        #self._cal = unq.cal
 
     
     def get_scans(self, scans, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None, intnum=None):
