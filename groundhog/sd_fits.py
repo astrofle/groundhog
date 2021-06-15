@@ -185,7 +185,7 @@ class SDFITS:
                 self.update_table_col('TCAL', tcal_col)
         
     
-    def update_table_col(self, column_name, column_vals):
+    def update_table_col(self, column_name, column_vals, tablenum=None):
         """
         Updates `column_name` with `column_vals` in the SDFITS table.
         
@@ -197,9 +197,16 @@ class SDFITS:
             Array with the new column values.
         """
         
-        new_table = sd_fits_utils.update_table_column(self.table, 
-                                                      column_name, 
-                                                      column_vals)
-        self.table = new_table
+        if tablenum is None:
+            for i in range(self.numtab):
+                new_table = sd_fits_utils.update_table_column(self.table[i], 
+                                                              column_name, 
+                                                              column_vals)
+                self.table[i] = new_table
+        else:
+            new_table = sd_fits_utils.update_table_column(self.table[tablenum], 
+                                                          column_name, 
+                                                          column_vals)
+            self.table[tablenum] = new_table
         
             
