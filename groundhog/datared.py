@@ -6,6 +6,8 @@ import warnings
 import numpy as np
 
 from groundhog import utils
+from groundhog.scan import Scan
+from groundhog import sd_fits_utils
 from groundhog import spectral_axis
 from groundhog.fluxscales import calibrators
 
@@ -71,7 +73,7 @@ def get_kappa(tcal_on, tcal_off, avgf=1):
     return kappa
     
 
-def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='vector', avgf_min=256):
+def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, fdnum=0, method='vector', avgf_min=256):
     """
     
     Parameters
@@ -105,8 +107,8 @@ def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, method='vector', avgf_mi
     procname, swstate, swtchsig = obsmode[0].split(':')
     
     if procname not in ["OffOn", "OnOff"]:
-        warnings.warn("Selected scan is not OnOff or OffOn, it is: {}"
-                      "Cannot get Tcal from this scan.".format(procname))
+        warnings.warn(f"Selected scan is not OnOff or OffOn, it is: {procname}."
+                      f"Cannot get Tcal from this scan.")
         return None
     
     scan_on, scan_off = utils.get_ps_scan_pair(scan, procnum, procname)
@@ -238,6 +240,36 @@ def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2
     return tcal
         
         
+def prepare_mapping_off(sdfits, scan, ifnum=0, intnum=None, plnum=0, fdnum=0):
+    """
+    """
     
+    ref_on = sdfits.get_scans(scan, ifnum=ifnum, plnum=plnum, fdnum=fdnum, cal='T')
+    ref_off = sdfits.get_scans(scan, ifnum=ifnum, plnum=plnum, fdnum=fdnum, cal='F')
+
+    tcal = np.average(ref_on.table['TCAL'], axis=0)
+
+    ref_add = (ref_on.data + ref_off.data)/2.
+    ref_exposures = ref_on.table['EXPOSURE'] + ref_off.table['EXPOSURE']
+
+    tsys_ref = gbtidl_tsys(ref_on.data, ref_off.data, tcal)
+
+    weight = ref_exposures / tsys_ref**2
+    tsys = np.average(tsys_ref, weights=weight)
+    ref = np.ma.average(ref_add, weights=weight, axis=0)
+    ref_exposure = ref_exposures.sum()
     
+    # Create a scan object for the reference position
+    # using the average values from the integrations.
+    ref_table = ref_on.table.copy()[0]
+    ref_table.setfield('DATA', ref)
+    ref_table.setfield('TSYS', tsys)
+    ref_table.setfield('EXPOSURE', ref_exposure)
+    for k in np.arange(1,4,1):
+        avg_col = np.array([np.average(ref_on.table.field(f'crval{k}'), weights=weight)])
+        ref_table.setfield(f'crval{k}', avg_col)
+    ref_scan = Scan(ref_table)
+    ref_scan.get_freq()
+    
+    return ref_scan
     

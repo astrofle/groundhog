@@ -133,11 +133,6 @@ def update_table_column(table, column, new_array):
         new_fmt = '1{}'.format(fmt[-1])
     else:
         new_fmt = '{}{}'.format(new_array.shape[1], fmt[-1])
-    #if len(fmt) == 1 or fmt[-1] == 'A':
-        #new_fmt = fmt
-    #elif len(fmt) == 2 and fmt[0] == '1':
-        #new_fmt = fmt
-    
     
     # Define the updated column.
     new_col = fits.Column(name=column, format=new_fmt, array=new_array)

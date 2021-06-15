@@ -16,7 +16,6 @@ def test_make_summary(sd_fits_table):
     
 
 def test_update_table_column(sd_fits_table):
-    #table, head = sd_fits_table
     sdfits = sd_fits_table
     table = sdfits.table[0]
     head = sdfits.header[0]

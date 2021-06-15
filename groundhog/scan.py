@@ -1,10 +1,12 @@
 """
+Scan object.
 """
 
 import numpy as np
 
 from groundhog import spectral_axis
-from astropy.nddata import NDDataArray
+#from astropy.nddata import NDDataArray
+
 
 class Scan():
     
@@ -30,6 +32,7 @@ class Scan():
         self.data = data_avg
         freq_avg = np.average(self.freq, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.freq = freq_avg
+        self.table["EXPOSURE"] = tint.sum()
         
         
     def get_freq(self):
