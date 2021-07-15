@@ -46,10 +46,12 @@ def read_sdfits(filename, ext='SINGLE DISH'):
     """
     """
     
-    table, head, phead = _read_sdfits(filename, ext=ext)
-    sdfits = SDFITS(table, head, phead=phead)
+    hdu = fits.open(filename, memmap=True)
+    #index = 
+    ##table, head, phead = _read_sdfits(filename, ext=ext)
+    #sdfits = SDFITS(table, head, phead=phead)
     
-    return sdfits
+    return hdu
 
 
 def _read_sdfits(filename, ext='SINGLE DISH'):
@@ -57,7 +59,7 @@ def _read_sdfits(filename, ext='SINGLE DISH'):
     """
     
     # Open the fits file.
-    hdu = fits.open(filename)
+    hdu = fits.open(filename, memmap=True)
     # Save the primary HDU header.
     phead = hdu[0].header
     
@@ -94,7 +96,6 @@ def write_sdfits(filename, sdfits, overwrite=False):
     
     new_hdul = fits.HDUList([empty_primary,] + table_hdus)
     new_hdul.writeto(filename, overwrite=overwrite)
-    #_write_sdfits(filename, table, header, overwrite=overwrite)
     
     
 def _write_sdfits(filename, table, header, overwrite=False):

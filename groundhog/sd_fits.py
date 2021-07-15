@@ -13,18 +13,19 @@ class SDFITS:
     
     __name__ = "SDFITS"
     
-    def __init__(self, table, header, phead=None):
+    def __init__(self, hdu=None, index=None):
         
-        self.table = table
-        self.header = header
-        self.phead = phead
+        self.hdu = hdu
+        self.index = index
         
-        self.unique = {}
-        for i,tab in enumerate(table):
-            self.unique[i] = sd_fits_utils.parse_sdfits(tab)
         
-        self.numtab = len(table)
-
+    def load(self, filename):
+        """
+        """
+        
+        self.hdu = fits.open(filename, memmap=True)
+        self.index = sd_fits_utils.build_index(hdu, ext='SINGLE DISH')
+        
     
     def get_scans(self, scans, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None, intnum=None):
         """

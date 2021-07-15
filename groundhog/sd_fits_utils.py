@@ -11,16 +11,29 @@ from collections import namedtuple
 from astropy.io import fits
 
 
+def build_index(hdu, ext='SINGLE DISH'):
+    """
+    """
+    
+    keys = ['scan', 'cal', 'plnum', 'sig', 'ifnum', 'fdnum']
+    
+    index = {}
+
+    for i,h in enumerate(hdu):
+        if h.name == ext:
+            index[i] = {}
+            for k in keys:
+                index[i][k] = h.data.field(k)
+                index[i][f"u{k}"] = np.array(list(set(h.data.field(k))))
+    
+    return index
+
+
 def parse_sdfits(table):
     """
     
     """
     
-    #uscans = np.unique(table['SCAN'])
-    #ucal = np.unique(table['CAL'])
-    #uplnum = np.unique(table['PLNUM'])
-    #usig = np.unique(table['SIG'])
-    #uifnum = np.unique(table['IFNUM'])
     uscans = np.array(list(set(table['SCAN'])), dtype=int)
     ucal = np.array(list(set(table['CAL'])), dtype=str)
     uplnum = np.array(list(set(table['PLNUM'])), dtype=int)
