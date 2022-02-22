@@ -8,86 +8,114 @@ import numpy as np
 
 from collections import namedtuple
 
-#from astropy.io import fits
 
-
-def build_index(sdfits, ext='SINGLE_DISH'):
+def build_index(hdu, extname='SINGLE_DISH', max_chunk=10000):
     """
     """
-    
-    keys = ['scan', 'cal', 'plnum', 'sig', 'ifnum', 'fdnum']
+
+    keys = ['scan', 'cal', 'plnum', 'sig', 'ifnum', 'fdnum',
+            'object', 'velocity', 'obsmode', 'procseqn', 'restfreq',
+            'azimuth', 'elevatio']
+    dtypes = [int, str, int, str, int, int, 
+              "<U10", float, "<U20", int, float, 
+              float, float]
     
     index = {}
 
     for i,h in enumerate(hdu):
-        if h.name == ext:
+        
+        if h.get_extname() == extname:
+            
             index[i] = {}
-            for k in keys:
-                index[i][k] = h.data.field(k)
-                index[i][f"u{k}"] = np.array(list(set(h.data.field(k))))
-    
+            nrows = h.get_info()['nrows']
+
+            # Create empty arrays to store the values.
+            for j,k in enumerate(keys):
+                index[i][k] = np.empty(nrows, dtype=dtypes[j])
+          
+            # Extract the contents of the HDU in chunks.
+            for c in range(0, int(np.ceil(nrows/max_chunk))+1):
+                c0 = c*max_chunk
+                cf = (c+1)*max_chunk
+
+                # Get the values from the HDU.
+                cols = h[keys][c0:cf]
+                for k in keys:
+                    #cols = h[k][c0:cf]
+                    index[i][k][c0:cf] = cols[k.upper()]
+                    #index[i][k][c0:cf] = h[k][c0:cf]
+
+    # Set unique values from the rows,
+    # remove extra characters from the object name,
+    # and set the rest frequency to GHz.
+    for i,h in enumerate(hdu):
+        if h.get_extname() == extname:
+            for j,k in enumerate(keys):
+                index[i][f"u{k}"] = np.array(list(set(index[i][k])), dtype=dtypes[j])
+
+            index[i]['object'] = np.array([o.strip() for o in index[i]['object']])
+            index[i]['restfreq'] *= 1e-9 # GHz
+
     return index
 
 
-def parse_sdfits(table):
+def get_sdfits_ext(sdfits, extname="SINGLE_DISH"):
     """
-    
     """
-    
-    uscans = np.array(list(set(table['SCAN'])), dtype=int)
-    ucal = np.array(list(set(table['CAL'])), dtype=str)
-    uplnum = np.array(list(set(table['PLNUM'])), dtype=int)
-    usig = np.array(list(set(table['SIG'])), dtype=str)
-    uifnum = np.array(list(set(table['IFNUM'])), dtype=str)
-    ufdnum = np.array(list(set(table['FDNUM'])), dtype=str)
-    
-    
-    Unique = namedtuple('UniqueEntries', ['scan', 'cal', 'plnum', 'sig', 'ifnum', 'fdnum'])
-    uniques = Unique(scan=uscans, cal=ucal, plnum=uplnum, sig=usig, ifnum=uifnum, fdnum=ufdnum)
-    
-    return uniques
+
+    if len(sdfits.hdu) == 2:
+        extnum = 1
+    elif len(sdfits.hdu) > 2:
+        for i in range(1,len(sdfits.hdu)):
+            if sdfits.hdu[i].get_extname() == extname:
+                extnum = i
+                # If something changed during an observation, e.g.,
+                # number of channels, the data is put in separate
+                # tables in the same sdfits file. In principle,
+                # we could work with data that spans multiple
+                # configurations, but it is better to leave that to 
+                # the users to avoid making decisions for them.
+                if extnum is not None:
+                    print("Scans span multiple configurations.")
+                    print("This is not supported.")
+                    return
+                extnum = i
+
+    return extnum
 
 
-def make_summary(table):
+def get_rows(index, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None):
     """
-    Creates a summary of the contents of an SDFITS table.
-    It tries to imitate the `summary` function in GBTIDL.
-    
-    Parameters
-    ----------
-    table : `astropy.io.fits.fitsrec`
-        Contents of the SDFITS file to summarize.
-        
-    Returns
-    -------
-    summary : `Summary` object
-        Summary(Scan, Source, Vel, Proc, Seq, RestF, nIF, nInt, nFd, Az, El)
     """
-    
-    uniques = parse_sdfits(table)
-    
-    Summary = namedtuple('Summary', ['Scan', 'Source', 'Vel', 'Proc', 'Seq',
-                                     'RestF', 'nIF', 'nInt', 'nFd', 'Az', 'El'])
-    summary = Summary(Scan=[], Source=[], Vel=[], Proc=[], Seq=[],
-                      RestF=[], nIF=[], nInt=[], nFd=[], Az=[], El=[])
-    #Summary = namedtuple('Summary', 'Scan Source Vel Proc Seq RestF nIF nInt nFd Az El'])
-    
-    for scan in uniques.scan:
+
+    rows = np.arange(len(index['scan']))
+
+    if scans is None and ifnum is None and sig is None and cal is None and plnum is None:
+        mask = False
+
+    else:
+        if scans is not None:
+            mask = np.isin(index["scan"], scans)
+        else:
+            scans = index["uscan"]
+            mask = np.isin(index["scan"], scans)
         
-        mask = (table['SCAN'] == scan)
-        summary.Scan.append(scan)
-        summary.Source.append(np.unique(table['OBJECT'][mask])[0])
-        summary.Vel.append(np.mean(table['VELOCITY'][mask]))
-        summary.Proc.append(np.unique(table['OBSMODE'][mask]).split(':')[0][0])
-        summary.Seq.append(np.unique(table['PROCSEQN'][mask])[0])
-        summary.RestF.append(np.unique(table['RESTFREQ'][mask])[0])
-        summary.nIF.append(len(np.unique(table['IFNUM'][mask])))
-        summary.nInt.append(mask.sum())
-        summary.nFd.append(np.unique(table['FDNUM'][mask])[0])
-        summary.Az.append(np.mean(table['AZIMUTH'][mask]))
-        summary.El.append(np.mean(table['ELEVATIO'][mask]))
-        
-    return summary
+        if ifnum is not None:
+            mask = mask & (index["ifnum"] == ifnum)
+            
+        if sig is not None:
+            mask = mask & (index["sig"] == sig)
+            
+        if cal is not None:
+            mask = mask & (index["cal"] == cal)
+
+        if plnum is not None:
+            mask = mask & np.isin(index["plnum"], plnum)
+
+        if fdnum is not None:
+            mask = mask & np.isin(index["fdnum"], fdnum)
+
+    return rows[mask]
 
 
 def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None):
@@ -122,6 +150,22 @@ def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None
     return mask
 
 
+def update_column_fmt(column, new_array):
+    """
+    """
+
+    fmt = column.format
+
+    if fmt[-1] == 'A':
+        new_fmt = fmt
+    elif len(new_array.shape) == 1:
+        new_fmt = '1{}'.format(fmt[-1])
+    else:
+        new_fmt = '{}{}'.format(new_array.shape[1], fmt[-1])
+
+    return new_fmt
+
+
 def update_table_column(table, column, new_array):
     """
     Parameters
@@ -136,25 +180,49 @@ def update_table_column(table, column, new_array):
     
     # Get the original table values.
     cols = table.columns
-    fmt = cols[column].format
-    
+   
+    # Define the fmt of the updated column.
+    fmt = update_column_fmt(cols[column], new_array)
+ 
     # Delete the column we will update.
     cols.del_col(column)
     
-    if fmt[-1] == 'A':
-        new_fmt = fmt
-    elif len(new_array.shape) == 1:
-        new_fmt = '1{}'.format(fmt[-1])
-    else:
-        new_fmt = '{}{}'.format(new_array.shape[1], fmt[-1])
-    
-    # Define the updated column.
-    new_col = fits.Column(name=column, format=new_fmt, array=new_array)
-    
+    # Define the updated column and add it to the other columns.
+    new_col = fits.Column(name=column, format=fmt, array=new_array)
     cols.add_col(new_col)
     
     # Make it a new table.
     new_hdu = fits.BinTableHDU.from_columns(cols)
     new_table = new_hdu.data
     
+    return new_table
+
+
+def append_table_column(table, column, data, dtype, loc=None):
+    """
+    """
+
+    cols_dt_list = table.dtype.descr
+
+    # Do not try to update existing columns.
+    if column in cols_dt_list:
+        print("Column already present.")
+        print("Will not overwrite.")
+        return table
+
+    # Define the data type for the new table with the 
+    # new column in the requested location.
+    if loc is None:
+        loc = len(cols_dt_list)
+    cols_dt_list.insert(loc, dtype)
+    new_dt = np.dtype(cols_dt_list)
+
+    # Create a new table with the same number of rows.
+    new_table = np.empty(len(table), dtype=new_dt)
+    
+    # Copy the contents from the original table into the new table.
+    for n in table.dtype.names:
+        new_table[n] = table[n]
+    new_table[column] = data
+
     return new_table

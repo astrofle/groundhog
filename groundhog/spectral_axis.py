@@ -14,7 +14,8 @@ def compute_freq_axis(table, chstart=1, chstop=-1, apply_doppler=True):
     # Copied from GBT gridder: 
     # https://github.com/nrao/gbtgridder/blob/master/src/get_data.py
     
-    shape = table.field('data').shape
+    #shape = table.field('data').shape
+    shape = table['DATA'].shape
     if len(shape) == 1:
         ax = 0
     elif len(shape) == 2:
@@ -25,12 +26,11 @@ def compute_freq_axis(table, chstart=1, chstop=-1, apply_doppler=True):
         
     freq = np.zeros(shape)
 
-    crv1 = table.field('crval1')*u.Hz
-    cd1 = table.field('cdelt1')*u.Hz
-    crp1 = table.field('crpix1')
-    vframe = table.field('vframe')*u.m/u.s
-    #frest = data.field('restfreq')
-    
+    crv1 = table['CRVAL1']*u.Hz
+    cd1 = table['CDELT1']*u.Hz
+    crp1 = table['CRPIX1']
+    vframe = table['VFRAME']*u.m/u.s
+
     # Observatory redshift.
     beta = vframe/ac.c
     
