@@ -7,7 +7,7 @@ from groundhog import spectral_axis
 
 
 def test_compute_freq_axis(sd_fits_table, gbtidl_spec):
-    table = sd_fits_table.table[0]
+    table = sd_fits_table.hdu[1].read()
     freq = spectral_axis.compute_freq_axis(table)
     np.testing.assert_allclose(freq.to('MHz').value[0], gbtidl_spec[:,0])
     

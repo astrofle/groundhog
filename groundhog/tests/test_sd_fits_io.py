@@ -6,7 +6,7 @@ from groundhog import sd_fits_io
 
 def test_read_sdfits(sd_fits_table):
     sdfits = sd_fits_table
-    assert sdfits.table[0].shape == (104,)
+    assert (sdfits.hdu[1].read()).shape == (104,)
     
 
 def test_write_sdfits(sd_fits_table, tmp_path):

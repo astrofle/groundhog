@@ -7,6 +7,7 @@ https://fits.gsfc.nasa.gov/registry/sdfits.html
 import numpy as np
 from datetime import datetime
 
+import fitsio
 from astropy.io import fits
 from astropy.time import Time
 
@@ -80,48 +81,42 @@ def _read_sdfits(filename, ext='SINGLE DISH'):
     return tables, heads, phead
     
 
-def write_sdfits(filename, sdfits, overwrite=False):
+def write_sdfits(name, data, overwrite=False, add_header=True):
     """
-    """
+    Write the contents of data to a new SDFITS file.
     
-    table = sdfits.table
-    header = sdfits.header
-    
-    phead = sdfits.phead
-    empty_primary = fits.PrimaryHDU(header=phead)
-    
-    table_hdus = []
-    for i,tab in enumerate(table):
-        table_hdus.append(fits.BinTableHDU(data=tab, header=header[i], name='SINGLE DISH'))
-    
-    new_hdul = fits.HDUList([empty_primary,] + table_hdus)
-    new_hdul.writeto(filename, overwrite=overwrite)
-    
-    
-def _write_sdfits(filename, table, header, overwrite=False):
-    """
-    """
-    
-    new_hdu = fits.BinTableHDU.from_columns(table)
-    
-    for k,v in header.items(): 
-        if k not in new_hdu.header.keys(): 
-            new_hdu.header[k] = v
-            
-    new_hdu.writeto(filename, overwrite=overwrite)
-    
+    """    
 
-def write_new_sdfits(filename, table, overwrite=False):
-    """
-    """
+    # Create primary header.
+    hlist = []
+    for row in make_sdfits_primary_header(date=None).cards:
+        if row[0] != 'COMMENT':
+            hlist.append({'name':row[0], 'value':row[1], 'comment':row[2]})
+
+
+    # Open output FITS file.
+    outfits = fitsio.FITS(name, 'rw', clobber=overwrite)
+    outfits.write(None, header=hlist)
+
+    # Create binary table extension.
+    dtype = data.dtype
+    outfits.create_table_hdu(dtype=dtype, extname='SINGLE DISH')
     
-    header = make_sdfits_primary_header(date=None)
-    empty_primary = fits.PrimaryHDU(header=header)
-    
-    header = make_sdfits_table_header()
-    table_hdu = fits.BinTableHDU(data=table, header=header, name='SINGLE DISH')
-    
-    new_hdul = fits.HDUList([empty_primary, table_hdu])
-    new_hdul.writeto(filename, overwrite=overwrite)
-    
-    
+    if add_header:
+        # Add table header.
+        hlist = []
+        for row in make_sdfits_table_header().cards:
+            if row[0] != 'COMMENT':
+                hlist.append({'name':row[0], 'value':row[1], 'comment':row[2]})
+        # Write header.
+        outfits[-1].write_keys(hlist)
+    outfits[-1]._update_info()
+    outfits.update_hdu_list()
+
+    # Write data.
+    outfits[-1].append(data)
+    outfits.update_hdu_list()
+
+    # Close output FITS file.
+    outfits.close()
+ 

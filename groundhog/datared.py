@@ -19,15 +19,19 @@ def gbtidl_sigref2ta(sig, ref, tsys):
     return tsys[:,np.newaxis]*(sig - ref)/ref
 
 
-def gbtidl_tsys(ref_on, ref_off, tcal):
+def gbtidl_tsys(ref_on, ref_off, tcal, use80=True):
     """
     """
     
     nchan = ref_on.shape[1]
     ch0 = int(nchan*0.1)
     chf = -int(nchan*0.1) + 1 # Python indexing is exclusive, IDL inclusive.
-    
-    return tcal*np.average(ref_off[:,ch0:chf], axis=1)/np.average(ref_on[:,ch0:chf] - ref_off[:,ch0:chf], axis=1) + tcal/2.
+    rng = slice(ch0,chf,1)
+
+    if not use80:
+        rng = slice(0,None,1)
+
+    return tcal*np.ma.average(ref_off[:,rng], axis=1)/np.average(ref_on[:,rng] - ref_off[:,rng], axis=1) + tcal/2.
 
 
 def classic_tsys(ref_on, ref_off, tcal):
@@ -97,7 +101,7 @@ def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, fdnum=0, method='vector'
     """
 
     ps_scan = sdfits.get_scans(scan, ifnum=ifnum, intnum=intnum, plnum=plnum)
-    rows = ps_scan.table
+    rows = ps_scan.array
     obsmode = rows["OBSMODE"]
     last_on = rows["LASTON"]
     last_off = rows["LASTOFF"]
@@ -153,20 +157,20 @@ def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, fdnum=0, method='vector'
         sig = 0.5*(sou_on.data + sou_off.data)
         ref = 0.5*(off_on.data + off_off.data)
         ta = gbtidl_sigref2ta(sig, ref, tsys)
-        tint_sou = 0.5*(sou_on.table["EXPOSURE"] + sou_off.table["EXPOSURE"])
-        tint_off = 0.5*(off_on.table["EXPOSURE"] + off_off.table["EXPOSURE"])
+        tint_sou = 0.5*(sou_on.array["EXPOSURE"] + sou_off.array["EXPOSURE"])
+        tint_off = 0.5*(off_on.array["EXPOSURE"] + off_off.array["EXPOSURE"])
         tint = 0.5*(tint_sou + tint_off)
-        dnu = np.mean(sou_on.table["CDELT1"])
+        dnu = np.mean(sou_on.array["CDELT1"])
         tsou = np.average(ta, axis=0, weights=dnu*tint*np.power(tsys, -2.))
         
     elif method == 'classic':
         tsys = classic_tsys(off_on.data, off_off.data, tcal)
         ta_on = (sou_on.data - off_on.data)/off_on.data*(tsys[:,np.newaxis] + tcal)
         ta_off = (sou_off.data - off_off.data)/off_off.data*(tsys[:,np.newaxis])
-        tint_sou = 0.5*(sou_on.table["EXPOSURE"] + sou_off.table["EXPOSURE"])
-        tint_off = 0.5*(off_on.table["EXPOSURE"] + off_off.table["EXPOSURE"])
+        tint_sou = 0.5*(sou_on.array["EXPOSURE"] + sou_off.array["EXPOSURE"])
+        tint_off = 0.5*(off_on.array["EXPOSURE"] + off_off.array["EXPOSURE"])
         tint = 0.5*(tint_sou + tint_off)
-        dnu = np.mean(sou_on.table["CDELT1"])
+        dnu = np.mean(sou_on.array["CDELT1"])
         ta_on = np.average(ta_on, axis=0, weights=dnu*tint_sou*np.power(tsys, -2.))
         ta_off = np.average(ta_off, axis=0, weights=dnu*tint_off*np.power(tsys, -2.))
         tsou = 0.5*(ta_on + ta_off)
@@ -180,12 +184,12 @@ def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2
     """
     
     cal_scan = sdfits.get_scans(scan, ifnum=ifnum, intnum=intnum, plnum=plnum)
-    cal_rows = cal_scan.table
+    cal_rows = cal_scan.array
     obsmode = cal_rows["OBSMODE"]
     last_on = cal_rows["LASTON"]
     last_off = cal_rows["LASTOFF"]
     procnum = cal_rows["PROCSEQN"]
-    source = np.unique(cal_rows['OBJECT'])[0]
+    source = np.unique(cal_rows['OBJECT'])[0].strip()
     
     procname, swstate, swtchsig = obsmode[0].split(':')
     
@@ -210,8 +214,10 @@ def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2
     sou_off.average()
     off_on.average()
     off_off.average()
-    off_freq = off_off.freq
-    sou_freq = sou_on.freq
+    off_off.get_freq()
+    sou_on.get_freq()
+    off_freq = off_off.freq[0]
+    sou_freq = sou_on.freq[0]
     
     nchan = off_on.data.shape[0]
     facs = utils.factors(nchan)

@@ -3,6 +3,13 @@
 """
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
+
+from collections import namedtuple
+
+import fitsio
+import pandas as pd
+from astropy.io import fits
 
 from groundhog.scan import Scan
 from groundhog import datared
@@ -13,20 +20,115 @@ class SDFITS:
     
     __name__ = "SDFITS"
     
-    def __init__(self, hdu=None, index=None):
+    def __init__(self, hdu=None, index=None, header=None):
         
         self.hdu = hdu
         self.index = index
-        
-        
-    def load(self, filename):
-        """
-        """
-        
-        self.hdu = fits.open(filename, memmap=True)
-        self.index = sd_fits_utils.build_index(hdu, ext='SINGLE DISH')
-        
+        self._summary = None
+       
     
+    def get_rows(self, extnum, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None, intnum=None):
+        """
+        """
+
+        rows = sd_fits_utils.get_rows(self.index[extnum],
+                                      scans=scans, ifnum=ifnum,
+                                      sig=sig, cal=cal,
+                                      plnum=plnum, fdnum=fdnum)
+
+        table = self.hdu[extnum][rows]
+        #index = self.index[extnum][rows]
+        
+        #outfits = fitsio.FITS()
+
+        return table
+
+
+    def load(self, filename, max_chunk=10000, mode='r'):
+        """
+        """
+        
+        self.hdu = fitsio.FITS(filename, mode)
+        self.index = sd_fits_utils.build_index(self.hdu, extname='SINGLE_DISH', 
+                                               max_chunk=max_chunk)
+
+    
+    def make_summary(self):
+        """
+        Creates a summary of the contents of an SDFITS table.
+        It tries to imitate the `summary` function in GBTIDL.
+        """
+
+        Summary = namedtuple('Summary', ['Scan', 'Source', 'Vel', 'Proc', 'Seq',
+                                         'RestF', 'nIF', 'nInt', 'nFd', 'Az', 'El'])
+        summary = Summary(Scan=[], Source=[], Vel=[], Proc=[], Seq=[],
+                          RestF=[], nIF=[], nInt=[], nFd=[], Az=[], El=[])
+
+        for k in self.index.keys():
+            index = self.index[k]
+            for i,scan in enumerate(index['uscan']):
+                summary.Scan.append(scan)
+                mask = (index['scan'] == scan)
+                summary.Source.append(list(set(index['object'][mask]))[0])
+                summary.Vel.append(np.mean(index['velocity'][mask]))
+                summary.Proc.append(list(set(index['obsmode'][mask]))[0].split(':')[0])
+                summary.Seq.append(list(set(index['procseqn'][mask]))[0])
+                summary.RestF.append(list(set(index['restfreq'][mask]))[0])
+                summary.nIF.append(len(list(set(index['ifnum'][mask]))))
+                # Need to fix the number of integrations. Currently it reports #rows/#spws.
+                summary.nInt.append(mask.sum()/summary.nIF[i])
+                summary.nFd.append(list(set(index['fdnum'][mask]))[0])
+                summary.Az.append(np.mean(index['azimuth'][mask]))
+                summary.El.append(np.mean(index['elevatio'][mask]))
+
+        self._summary = summary
+
+
+    def get_channels(self, ch0, chf, dch=1, extname='SINGLE_DISH'):
+        """
+        Returns the contents of the SDFITS file with its DATA containing only the
+        selected channels.
+        Only dch=1 is supported at the moment.
+        This will onlyreturn the contents of the first extension matching extname.
+        """
+
+        if dch > 1 or dch <= 0:
+            print("Not implemented.")
+            return
+
+        # Find the extension number and read its contents. 
+        extnum = sd_fits_utils.get_sdfits_ext(self, extname=extname)
+        table = self.hdu[extnum][:]
+        head = self.hdu[extnum].read_header()
+
+        # Find the number of channels and 
+        # define how many channels the selection will have.
+        nchan = int(head['TFORM7'][:-1])
+        fslice = slice(ch0, chf, dch)
+        chan_slice = fslice.indices(nchan)
+        nchan_sel = (chan_slice[1] - chan_slice[0])//chan_slice[2]
+
+        # Remove the DATA column from the table.
+        nodata_cols = rfn.drop_fields(table, 'DATA')
+        # Copy the column definitions as a list.
+        nodata_cols_dt = nodata_cols.dtype.descr
+        # Concatenate the column definitions with the new data shape.
+        new_dt = np.dtype(nodata_cols_dt[:6] + [('DATA', '>f4', (nchan_sel,))] + nodata_cols_dt[6:])
+        # Create a new table with the same number of rows.
+        new_table = np.empty(head['NAXIS2'], dtype=new_dt)
+        
+        # Fill the new table with the old contents, 
+        # and the DATA selection.
+        for n in nodata_cols.dtype.names:
+            new_table[n] = nodata_cols[n]
+        new_table['DATA'] = table['DATA'][:,fslice]
+        # Update the frequency axis and bandwidth.
+        new_table['CRPIX1'] -= ch0
+        new_table['BANDWID'] = new_table['FREQRES'] * nchan_sel
+
+        return new_table
+
+
     def get_scans(self, scans, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None, intnum=None):
         """
         Returns the rows in the SDFITS table for the requested scan numbers.
@@ -34,7 +136,7 @@ class SDFITS:
         Parameters
         ----------
         scans : int or array_like
-            Scans to get.
+            Scans to retrieve.
         
         Returns
         -------
@@ -43,31 +145,42 @@ class SDFITS:
         """
         
         table = None
+        extnum = None
+        rows = None
         
-        # Select the table from the possible tables.
-        if self.numtab == 1:
-            table = self.table[0]
-        elif self.numtab > 1:
-            for i in range(self.numtab):
-                if np.isin(self.table[i]["SCAN"], scans).sum() > 0:
-                    if table is not None:
+        # Find the extension.
+        # There's always the primary HDU, plus the table HDUs.
+        #get_sdfits_ext(sdfits
+        if len(self.hdu) == 2:
+            extnum = 1
+        elif len(self.hdu) > 2:
+            for i in range(1,len(self.hdu)):
+                if np.isin(self.index[i]['uscan'], scans).sum() > 0:
+                    # If something changed during an observation, e.g.,
+                    # number of channels, the data is put in separate
+                    # tables in the same sdfits file. In principle,
+                    # we could work with data that spans multiple
+                    # configurations, but it is better to leave that to 
+                    # the users to avoid making decisions for them.
+                    if extnum is not None:
                         print("Scans span multiple configurations.")
                         print("This is not supported.")
                         return
-                    table = self.table[i]
+                    extnum = i
         
-        mask = sd_fits_utils.get_table_mask(table, scans=scans, 
-                                            ifnum=ifnum, sig=sig, 
-                                            cal=cal, plnum=plnum)
+        rows = sd_fits_utils.get_rows(self.index[extnum], 
+                                      scans=scans, ifnum=ifnum, 
+                                      sig=sig, cal=cal, 
+                                      plnum=plnum, fdnum=fdnum)
         
-        table_scans = table[mask]
+        out_scans = self.hdu[extnum][rows]
         
         if intnum is not None:
             if not hasattr(intnum, "__len__"):
                 intnum = [intnum]
-            table_scans = table_scans[intnum]
+            out_scans = out_scans[intnum]
         
-        scan = Scan(table_scans)
+        scan = Scan(out_scans)
         
         return scan
     
@@ -85,8 +198,8 @@ class SDFITS:
             left and 10% of the channels on the right.
         """
         
-        for i,table in enumerate(self.table):
-            data = table['DATA']
+        for i,table in enumerate(self.hdu[1:]):
+            data = table['DATA'][:]
             
             if len(data.shape) == 1:
                 nchan = data.shape[0]
@@ -106,13 +219,13 @@ class SDFITS:
             
             # Update DATA column.
             new_table = sd_fits_utils.update_table_column(table, 'DATA', data)
-            self.table[i] = new_table
+            self.hdu[i]['DATA'] = new_table
             
             # Update frequency axis header.
             crp1 = table.field('crpix1')
             crp1 -= chan0
             new_table = sd_fits_utils.update_table_column(table, 'CRPIX1', crp1)
-            self.table[i] = new_table
+            self.hdu[i]['DATA'] = new_table
             
     
     def update_tcal(self, scan, ifnum=None, plnum=None, update_scans=None,
@@ -210,4 +323,17 @@ class SDFITS:
                                                           column_vals)
             self.table[tablenum] = new_table
         
-            
+
+    def summary(self):
+        """
+        """
+
+        if self._summary is None:
+            self.make_summary()
+
+        pd.set_option('display.max_rows', None)
+        pd.options.display.float_format = '{:,.3f}'.format
+        pd.set_option('display.expand_frame_repr', False)
+        df = pd.DataFrame(data=self._summary._asdict())
+
+        print(df.to_string(index=False))
