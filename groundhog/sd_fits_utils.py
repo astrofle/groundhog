@@ -8,10 +8,10 @@ import numpy as np
 
 from collections import namedtuple
 
-from astropy.io import fits
+#from astropy.io import fits
 
 
-def build_index(hdu, ext='SINGLE DISH'):
+def build_index(sdfits, ext='SINGLE_DISH'):
     """
     """
     
@@ -70,6 +70,7 @@ def make_summary(table):
                                      'RestF', 'nIF', 'nInt', 'nFd', 'Az', 'El'])
     summary = Summary(Scan=[], Source=[], Vel=[], Proc=[], Seq=[],
                       RestF=[], nIF=[], nInt=[], nFd=[], Az=[], El=[])
+    #Summary = namedtuple('Summary', 'Scan Source Vel Proc Seq RestF nIF nInt nFd Az El'])
     
     for scan in uniques.scan:
         
