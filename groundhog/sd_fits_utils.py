@@ -9,8 +9,6 @@ import numpy.lib.recfunctions as rfn
 
 from collections import namedtuple
 
-from astropy.io import fits
-
 
 def build_index(hdu, extname='SINGLE_DISH', max_chunk=10000):
     """
@@ -119,7 +117,6 @@ def get_rows(index, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnu
             mask = mask & np.isin(index["fdnum"], fdnum)
 
     return rows[mask]
-
 
 
 def get_table_mask(table, scans=None, ifnum=None, sig=None, cal=None, plnum=None, fdnum=None):
