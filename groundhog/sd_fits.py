@@ -44,12 +44,12 @@ class SDFITS:
         return table
 
 
-    def load(self, filename, max_chunk=10000, mode='r'):
+    def load(self, filename, max_chunk=10000, mode='r', extname='SINGLE_DISH'):
         """
         """
         
         self.hdu = fitsio.FITS(filename, mode)
-        self.index = sd_fits_utils.build_index(self.hdu, extname='SINGLE_DISH', 
+        self.index = sd_fits_utils.build_index(self.hdu, extname=extname, 
                                                max_chunk=max_chunk)
 
     
@@ -103,7 +103,8 @@ class SDFITS:
 
         # Find the number of channels and 
         # define how many channels the selection will have.
-        nchan = int(head['TFORM7'][:-1])
+        #nchan = int(head['TFORM7'][:-1])
+        nrow, nchan = table['DATA'].shape
         fslice = slice(ch0, chf, dch)
         chan_slice = fslice.indices(nchan)
         nchan_sel = (chan_slice[1] - chan_slice[0])//chan_slice[2]

@@ -5,6 +5,7 @@ Utility functions to handle SDFITS files.
 
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
 
 from collections import namedtuple
 
@@ -229,3 +230,36 @@ def append_table_column(table, column, data, dtype, loc=None):
     new_table[column] = data
 
     return new_table
+
+
+def split_channel_range(table, ch0, chf, dch=1):
+    """
+    """
+
+    # Find the number of channels and 
+    # define how many channels the selection will have.
+    nrow, nchan = table['DATA'].shape
+    fslice = slice(ch0, chf, dch)
+    chan_slice = fslice.indices(nchan)
+    nchan_sel = (chan_slice[1] - chan_slice[0])//chan_slice[2]
+
+    # Remove the DATA column from the table.
+    nodata_table = rfn.drop_fields(table, 'DATA')
+    # Copy the column definitions as a list.
+    nodata_table_dt = nodata_table.dtype.descr
+    # Concatenate the column definitions with the new data shape.
+    new_dt = np.dtype(nodata_table_dt[:6] + [('DATA', '>f4', (nchan_sel,))] + nodata_table_dt[6:])
+    # Create a new table with the same number of rows.
+    new_table = np.empty(nrow, dtype=new_dt)
+
+    # Fill the new table with the old contents, 
+    # and the DATA selection.
+    for n in nodata_table.dtype.names:
+        new_table[n] = nodata_table[n]
+    new_table['DATA'] = table['DATA'][:,fslice]
+    # Update the frequency axis and bandwidth.
+    new_table['CRPIX1'] -= ch0
+    new_table['BANDWID'] = new_table['FREQRES'] * nchan_sel
+
+    return new_table
+
