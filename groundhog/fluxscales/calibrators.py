@@ -53,6 +53,9 @@ def compute_sed(freq, scale, source, units='Jy'):
     return snu.to(units)
 
 
+calibrators = ['3C48', '3C123', '3C138', '3C147', '3C196', '3C286', '3C295', '3C348', '3C353', '3C380']
+
+
 cal_coefs = {'Perley-Butler 2017':{'method' : poly_pb,
                                    '3C48' : [0.04980, -0.1914, -0.7553,  1.3253],
                                    '3C123': [0.00900, -0.0248, -0.1035, -0.7884,  1.8017],
