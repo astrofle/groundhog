@@ -25,32 +25,33 @@ class Scan():
         
         tint = self.array["EXPOSURE"]
         dnu = self.array["CDELT1"]
-        data_avg = np.ma.average(self.data, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
+        data = np.ma.masked_invalid(self.data)
+        data_avg = np.ma.average(data, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.data = data_avg
         #freq_avg = np.average(self.freq, axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         #self.freq = freq_avg
 
         # Update the array columns.
         self.array["EXPOSURE"] = tint.sum()
-        self.array["DATA"] = data_avg
+        #self.array["DATA"] = data_avg
         self.array["CRVAL1"] = np.ma.average(self.array["CRVAL1"], axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.array["CRPIX1"] = np.ma.average(self.array["CRPIX1"], axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.array["CDELT1"] = np.ma.average(self.array["CDELT1"], axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
         self.array["VFRAME"] = np.ma.average(self.array["VFRAME"], axis=0, weights=dnu*tint*np.power(self.tsys, -2.))
 
 
-    def update_freq(self):
+    def update_xaxis(self):
         """
         """
 
-        self.freq = spectral_axis.compute_freq_axis(self.array)
+        self.xaxis = spectral_axis.compute_spectral_axis(self.array)
 
         
-    def get_freq(self):
+    def get_xaxis(self):
         """
         """
         try:
-            return self.freq
+            return self.xaxis
         except AttributeError:
-            self.freq = spectral_axis.compute_freq_axis(self.array)
-            return self.freq
+            self.xaxis = spectral_axis.compute_spectral_axis(self.array)
+            return self.xaxis
