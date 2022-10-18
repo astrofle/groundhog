@@ -75,7 +75,25 @@ def get_kappa(tcal_on, tcal_off, avgf=1):
     kappa = np.ma.power(off_ratio - 1., -1.)  
     
     return kappa
-    
+   
+
+def get_ps_data(sdfits, scan, procnum, procname, ifnum=0, intnum=None, plnum=0, fdnum=0):
+    """
+    Returns the data for a pair of On-Off scans.
+    """
+
+    scan_on, scan_off = utils.get_ps_scan_pair(scan, procnum, procname)
+
+    sou_on = sdfits.get_scans(scan_on, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum, fdnum=fdnum)
+    sou_off = sdfits.get_scans(scan_on, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum, fdnum=fdnum)
+    off_on = sdfits.get_scans(scan_off, sig="T", cal="T", ifnum=ifnum, intnum=intnum, plnum=plnum, fdnum=fdnum)
+    off_off = sdfits.get_scans(scan_off, sig="T", cal="F", ifnum=ifnum, intnum=intnum, plnum=plnum, fdnum=fdnum)
+
+    result = {'source_on': sou_on, 'source_off': sou_off,
+              'reference_on': off_on, 'reference_off': off_off}
+
+    return result
+
 
 def get_ps(sdfits, scan, ifnum=0, intnum=None, plnum=0, fdnum=0, method='vector', avgf_min=256):
     """

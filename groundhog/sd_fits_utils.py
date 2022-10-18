@@ -25,7 +25,8 @@ def build_index(hdu, extname='SINGLE_DISH', max_chunk=10000):
 
     for i,h in enumerate(hdu):
         
-        if h.get_extname() == extname:
+        if (h.get_extname() == extname) or \
+           (h.get_extname() == " ".join(extname.split("_"))):
             
             index[i] = {}
             nrows = h.get_info()['nrows']
@@ -50,7 +51,8 @@ def build_index(hdu, extname='SINGLE_DISH', max_chunk=10000):
     # remove extra characters from the object name,
     # and set the rest frequency to GHz.
     for i,h in enumerate(hdu):
-        if h.get_extname() == extname:
+        if (h.get_extname() == extname) or \
+           (h.get_extname() == " ".join(extname.split("_"))):
             for j,k in enumerate(keys):
                 index[i][f"u{k}"] = np.array(list(set(index[i][k])), dtype=dtypes[j])
 
