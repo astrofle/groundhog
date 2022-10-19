@@ -186,7 +186,7 @@ class SDFITS:
         return scan
     
     
-    def remove_edge_chans(self, frac=0.2, chan0=None, chanf=None):
+    def remove_edge_chans(self, hduidx=1, frac=0.2, chan0=None, chanf=None, dch=1):
         """
         Removes the edge channels of the SDFITS DATA table.
         
@@ -199,34 +199,60 @@ class SDFITS:
             left and 10% of the channels on the right.
         """
         
-        for i,table in enumerate(self.hdu[1:]):
-            data = table['DATA'][:]
+        #for i,table in enumerate(self.hdu[1:]):
+        table = self.hdu[hduidx]
+        data = table["DATA"][:]
+        nrow, nchan = data.shape #table['DATA'].shape
+
+        #if len(data.shape) == 1:
+        #    nchan = data.shape[0]
+        #elif len(data.shape) == 2:
+        #    nchan = data.shape[1]
             
-            if len(data.shape) == 1:
-                nchan = data.shape[0]
-            elif len(data.shape) == 2:
-                nchan = data.shape[1]
-                
-            if chan0 is None:
-                chan0 = int(nchan*frac/2)
-            if chanf is None:
-                chanf = int(nchan - nchan*frac/2)
-            
-            # Select only inner channels.
-            if len(data.shape) == 1:
-                data = data[chan0:chanf]
-            elif len(data.shape) == 2:
-                data = data[:,chan0:chanf]
-            
-            # Update DATA column.
-            new_table = sd_fits_utils.update_table_column(table, 'DATA', data)
-            self.hdu[i]['DATA'] = new_table
-            
-            # Update frequency axis header.
-            crp1 = table.field('crpix1')
-            crp1 -= chan0
-            new_table = sd_fits_utils.update_table_column(table, 'CRPIX1', crp1)
-            self.hdu[i]['DATA'] = new_table
+        if chan0 is None:
+            chan0 = int(nchan*frac/2)
+        if chanf is None:
+            chanf = int(nchan - nchan*frac/2)
+        
+        xslice = slice(chan0, chanf, dch)
+        chan_slice = xslice.indices(nchan)
+        nchan_sel = (chan_slice[1] - chan_slice[0])//chan_slice[2]
+
+        # Remove the DATA column from the table.
+        nodata_table = rfn.drop_fields(table[:], "DATA")
+        # Copy the column definitions as a list.
+        nodata_table_dt = nodata_table.dtype.descr
+        # Concatenate the column definitions with the new data shape.
+        new_dt = np.dtype(nodata_table_dt[:6] + [("DATA", '>f4', (nchan_sel,))] + nodata_table_dt[6:])
+        # Create a new table with the same number of rows.
+        new_table = np.empty(nrow, dtype=new_dt)
+
+        # Fill the new table with the old contents, 
+        # and the DATA selection.
+        for n in nodata_table.dtype.names:
+            new_table[n] = nodata_table[n]
+        new_table["DATA"] = table["DATA"][:][:,xslice]
+        # Update the frequency axis and bandwidth.
+        new_table["CRPIX1"] -= chan0
+        new_table["BANDWID"] = new_table["FREQRES"] * nchan_sel
+
+        self.hdu[hduidx][:] = new_table
+
+        ## Select only inner channels.
+        #if len(data.shape) == 1:
+        #    data = data[chan0:chanf]
+        #elif len(data.shape) == 2:
+        #    data = data[:,chan0:chanf]
+        #
+        ## Update DATA column.
+        #new_table = sd_fits_utils.update_table_column(table, 'DATA', data)
+        #self.hdu[i]['DATA'] = new_table
+        #
+        ## Update frequency axis header.
+        #crp1 = table.field('crpix1')
+        #crp1 -= chan0
+        #new_table = sd_fits_utils.update_table_column(table, 'CRPIX1', crp1)
+        #self.hdu[i]['DATA'] = new_table
             
     
     def update_tcal(self, scan, ifnum=None, plnum=None, update_scans=None,

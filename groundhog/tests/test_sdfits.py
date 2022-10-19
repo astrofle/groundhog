@@ -10,14 +10,14 @@ def test_remove_edge_channels(sd_fits_table_hi):
     sdfits = sd_fits_table_hi
     # First get the frequency without removing edges.
     ps_scan = sdfits.get_scans(6, ifnum=0, intnum=0, plnum=0)
-    freq_tot = ps_scan.get_freq()
+    freq_tot = ps_scan.get_xaxis()
     spec_tot = ps_scan.data
     # Now remove the edges.
     sdfits.remove_edge_chans()
     ps_scan = sdfits.get_scans(6, ifnum=0, intnum=0, plnum=0)
     # Does it have the correct shape?
     assert ps_scan.data.shape == (1, 26215)
-    freq_crop = ps_scan.get_freq()
+    freq_crop = ps_scan.get_xaxis()
     spec_crop = ps_scan.data
     # Compare.
     idx0 = np.argmin(abs(freq_tot[0] - freq_crop[0,0]))
@@ -25,3 +25,10 @@ def test_remove_edge_channels(sd_fits_table_hi):
     idx0,idxf = np.sort([idx0,idxf+1])
     np.testing.assert_allclose(freq_tot[0][idx0:idxf], freq_crop[0])
     np.testing.assert_allclose(spec_tot[0][idx0:idxf], spec_crop[0])
+
+
+def test_make_summary(sd_fits_table):
+    sd_fits_table.make_summary()
+    assert sd_fits_table._summary.Scan == [5, 6]
+    assert sd_fits_table._summary.Proc == ['OffOn', 'OffOn']
+    assert sd_fits_table._summary.Az == [247.89581746345755, 253.10093738847564]
