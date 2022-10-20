@@ -169,36 +169,36 @@ def update_column_fmt(column, new_array):
     return new_fmt
 
 
-def update_table_column(table, column, new_array):
-    """
-    Parameters
-    ----------
-    table : `astropy.io.fits.fitsrec`
-        Contents of the SDFITS file to update.
-    column : str
-        Name of the column to update.
-    new_array : np.ndarray
-        Array with the new column values.
-    """
-    
-    # Get the original table values.
-    cols = table.columns
-   
-    # Define the fmt of the updated column.
-    fmt = update_column_fmt(cols[column], new_array)
- 
-    # Delete the column we will update.
-    cols.del_col(column)
-    
-    # Define the updated column and add it to the other columns.
-    new_col = fits.Column(name=column, format=fmt, array=new_array)
-    cols.add_col(new_col)
-    
-    # Make it a new table.
-    new_hdu = fits.BinTableHDU.from_columns(cols)
-    new_table = new_hdu.data
-    
-    return new_table
+#def update_table_column(table, column, new_array):
+#    """
+#    Parameters
+#    ----------
+#    table : `astropy.io.fits.fitsrec`
+#        Contents of the SDFITS file to update.
+#    column : str
+#        Name of the column to update.
+#    new_array : np.ndarray
+#        Array with the new column values.
+#    """
+#    
+#    # Get the original table values.
+#    cols = table.columns
+#   
+#    # Define the fmt of the updated column.
+#    fmt = update_column_fmt(cols[column], new_array)
+# 
+#    # Delete the column we will update.
+#    cols.del_col(column)
+#    
+#    # Define the updated column and add it to the other columns.
+#    new_col = fits.Column(name=column, format=fmt, array=new_array)
+#    cols.add_col(new_col)
+#    
+#    # Make it a new table.
+#    new_hdu = fits.BinTableHDU.from_columns(cols)
+#    new_table = new_hdu.data
+#    
+#    return new_table
 
 
 def append_table_column(table, column, data, dtype, loc=None):
