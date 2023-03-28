@@ -232,10 +232,10 @@ def get_tcal(sdfits, scan, ifnum=0, intnum=None, plnum=0, scale="Perley-Butler 2
     sou_off.average()
     off_on.average()
     off_off.average()
-    off_off.get_freq()
-    sou_on.get_freq()
-    off_freq = off_off.freq[0]
-    sou_freq = sou_on.freq[0]
+    off_off.get_xaxis()
+    sou_on.get_xaxis()
+    off_freq = off_off.xaxis[0]
+    sou_freq = sou_on.xaxis[0]
     
     nchan = off_on.data.shape[0]
     facs = utils.factors(nchan)
